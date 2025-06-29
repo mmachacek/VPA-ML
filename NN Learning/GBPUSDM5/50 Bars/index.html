@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Close Volume Data Neural Network Training</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@latest"></script>
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+    <script src="xs.js"></script>
+    <script src="ys.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; color: #333; }
+        .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .config-section, .metrics-section, .data-section, .graph-section { background-color: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .full-width { grid-column: 1 / -1; }
+        h1, h2, h3 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 5px; }
+        h1 { text-align: center; margin-bottom: 30px;}
+        h3 { margin-top: 15px; }
+        label { display: block; margin-bottom: 3px; font-weight: bold; color: #555; }
+        button { padding: 10px 18px; margin: 8px 5px 0 0; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 4px; font-size: 1em; transition: background-color 0.3s ease; }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        select, input[type="number"], input[type="text"] { width: calc(100% - 18px); padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box; }
+        input[type="checkbox"] { margin-right: 5px; vertical-align: middle;}
+        progress { width: 100%; height: 20px; margin-top: 5px; }
+        .metrics-display { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px; }
+        .metric { font-weight: bold; color: #007bff; }
+        #backendStatus { font-weight: bold; }
+        .model-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 4px; background-color: #fafafa; }
+        .model-options label, .model-options input[type="checkbox"] { display: inline-block; margin-bottom: 0; vertical-align: middle;}
+        .layer-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;}
+        .option-group { margin-bottom: 12px; }
+        .tooltip { position: relative; display: inline-block; cursor: help; margin-left: 4px; color: #777; font-weight: bold;}
+        .tooltip .tooltiptext { visibility: hidden; width: 220px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s; font-size: 0.85em; font-weight: normal; line-height: 1.4;}
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+        #saveModelBtn { background-color: #007bff;}
+        #saveModelBtn:hover { background-color: #0056b3;}
+        /* Style for disabled model options */
+        .model-options div[disabled] label,
+        .layer-config div[disabled] label { color: #aaa; }
+         .layer-config input:disabled,
+         .layer-config select:disabled { background-color: #eee; }
+    </style>
+</head>
+<body>
+    <h1>Close Volume Data Neural Network Training</h1>
+
+    <div class="container">
+        <div class="config-section">
+            <h2>Configuration</h2>
+            <!-- General Config -->
+            <div class="option-group">
+                <label for="backendSelect">Backend:</label>
+                <select id="backendSelect">
+                    <option value="webgl" selected>WebGL</option>
+                    <option value="cpu">CPU</option>
+                    <option value="webgpu">WebGPU</option>
+                </select>
+                <button id="initBackend">Initialize Backend</button>
+                <p>Active Backend: <span id="backendStatus">Not initialized</span></p>
+            </div>
+             <div class="option-group">
+                <label for="inputSize">Input Size (Bars):</label>
+                <input type="number" id="inputSize" min="5" max="500" step="1" value="50">
+            </div>
+             <div class="option-group">
+                <label for="modelType">Base Model Type:</label>
+                <select id="modelType">
+                    <option value="dense">Dense</option>
+                    <option value="gru">GRU</option>
+                    <option value="lstm">LSTM</option>
+                    <option value="cnn">CNN</option>
+                    <option value="cnn_gru" selected>CNN-GRU</option>
+                    <option value="cnn_lstm">CNN-LSTM</option>
+                    <option value="cnn_lstm_gru">CNN-LSTM-GRU</option>
+                    <option value="cnn_gru_lstm">CNN-GRU-LSTM</option>
+                </select>
+            </div>
+
+            <!-- Layer Architecture Config -->
+            <h3>Layer Configuration</h3>
+            <div class="layer-config">
+                <!-- CNN Config -->
+                <div id="cnnConfigGroup">
+                     <label for="cnnLayers">CNN Blocks <span class="tooltip">(?)<span class="tooltiptext">Number of Conv1D + Pooling blocks.</span></span>:</label>
+                    <select id="cnnLayers">
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                    </select>
+                    <label for="cnnFilters">Filters <span class="tooltip">(?)<span class="tooltiptext">Comma-separated filter counts per block (e.g., '64,128').</span></span>:</label>
+                    <input type="text" id="cnnFilters" value="64,128">
+                    <label for="cnnKernelSize">Kernel Size <span class="tooltip">(?)<span class="tooltiptext">Filter width (single value for all blocks).</span></span>:</label>
+                    <input type="number" id="cnnKernelSize" min="2" max="9" step="1" value="5">
+                    <label for="cnnPoolSize">Pool Size <span class="tooltip">(?)<span class="tooltiptext">Downsampling factor (single value).</span></span>:</label>
+                    <input type="number" id="cnnPoolSize" min="1" max="4" step="1" value="2">
+                     <div>
+                        <input type="checkbox" id="residual">
+                        <label for="residual">Residual CNN <span class="tooltip">(?)<span class="tooltiptext">Add skip connections within CNN blocks.</span></span></label>
+                    </div>
+                </div>
+                <!-- RNN Config -->
+                <div id="rnnConfigGroup">
+                    <label for="rnnLayers">RNN Layers <span class="tooltip">(?)<span class="tooltiptext">Number of stacked RNN layers (GRU/LSTM). Applied after CNN if present.</span></span>:</label>
+                    <select id="rnnLayers" name="stackedLayers">
+                        <option value="0">0</option>
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                    <label for="rnnUnits">Units <span class="tooltip">(?)<span class="tooltiptext">Comma-separated units per RNN layer (e.g., '64,32').</span></span>:</label>
+                    <input type="text" id="rnnUnits" value="64">
+                     <div>
+                        <input type="checkbox" id="bidirectional" checked>
+                        <label for="bidirectional">Bidirectional <span class="tooltip">(?)<span class="tooltiptext">Process sequences forward and backward.</span></span></label>
+                    </div>
+                     <div>
+                        <input type="checkbox" id="attention" checked>
+                        <label for="attention">Attention <span class="tooltip">(?)<span class="tooltiptext">Add self-attention mechanism after RNNs.</span></span></label>
+                    </div>
+                </div>
+                <!-- Dense Config -->
+                <div id="denseConfigGroup">
+                    <label for="denseLayers">Dense Layers <span class="tooltip">(?)<span class="tooltiptext">Number of hidden dense layers after feature extraction.</span></span>:</label>
+                     <select id="denseLayers">
+                        <option value="0" selected>0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                    <label for="denseNeurons">Neurons <span class="tooltip">(?)<span class="tooltiptext">Comma-separated neurons per dense layer (e.g., '64').</span></span>:</label>
+                    <input type="text" id="denseNeurons" value="">
+                </div>
+            </div>
+
+            <!-- Training Config -->
+            <h3>Training Configuration</h3>
+             <div class="option-group">
+                <label for="learningRate">Initial Learning Rate:</label>
+                <select id="learningRate">
+                    <option value="0.01">0.01</option>
+                    <option value="0.005">0.005</option>
+                    <option value="0.002">0.002</option>
+                    <option value="0.001" selected>0.001</option>
+                    <option value="0.0005">0.0005</option>
+                    <option value="0.0001">0.0001</option>
+                    <option value="0.00005">0.00005</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="lrScheduler">LR Scheduler:</label>
+                <select id="lrScheduler">
+                    <option value="none">None</option>
+                    <option value="exponential">Exponential Decay</option>
+                    <option value="cosine">Cosine Annealing</option>
+                    <option value="onecycle">One Cycle</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="optimizerSelect">Optimizer:</label>
+                <select id="optimizerSelect">
+                    <option value="adam">Adam</option>
+                    <option value="rmsprop">RMSprop</option>
+                    <option value="sgd">SGD</option>
+                    <option value="adagrad">Adagrad</option>
+                    <option value="adamax" selected>Adamax</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="batchSize">Batch Size:</label>
+                <select id="batchSize">
+                    <option value="8">8</option>
+                    <option value="16">16</option>
+                    <option value="32">32</option>
+                    <option value="64">64</option>
+                    <option value="128">128</option>
+                    <option value="256">256</option>
+                    <option value="512">512</option>
+                    <option value="1024" selected>1024</option>
+                    <option value="2048">2048</option>
+                    <option value="4096">4096</option>
+                    <option value="8192">8192</option>
+                </select>
+            </div>
+            <div class="option-group">
+                <input type="checkbox" id="gradientClipping">
+                <label for="gradientClipping" style="display: inline-block;">Gradient Clipping <span class="tooltip">(?)<span class="tooltiptext">Prevent exploding gradients by capping norm.</span></span></label>
+                <input type="number" id="clipValue" value="1.0" step="0.1" style="width: 80px; display: inline-block; margin-left: 10px;" disabled>
+            </div>
+             <div class="option-group">
+                <label for="regularization">L2 Regularization:</label>
+                <select id="regularization">
+                    <option value="0.001">Strong (0.001)</option>
+                    <option value="0.0005">Medium (0.0005)</option>
+                    <option value="0.0001" selected>Light (0.0001)</option>
+                    <option value="0">None</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="dropoutRate">Dropout Rate:</label>
+                <select id="dropoutRate">
+                    <option value="0">None</option>
+                    <option value="0.1">Low (0.1)</option>
+                    <option value="0.3" selected>Medium (0.3)</option>
+                    <option value="0.5">High (0.5)</option>
+                    <option value="0.6">Very High (0.6)</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="dataAugmentation">Data Augmentation (Noise %):</label>
+                <select id="dataAugmentation">
+                    <option value="0" selected>None (0%)</option>
+                    <option value="0.01">1%</option>
+                    <option value="0.05">5%</option>
+                    <option value="0.1">10%</option>
+                </select>
+            </div>
+             <div class="option-group">
+                <label for="maxEpochs">Max Epochs:</label>
+                <input type="number" id="maxEpochs" min="1" max="1000" value="100">
+            </div>
+             <div class="option-group">
+                <label for="earlyStoppingPatience">Early Stopping Patience:</label>
+                <input type="number" id="earlyStoppingPatience" min="3" max="50" value="15">
+                <span class="tooltip">(?)<span class="tooltiptext">Stop training if validation accuracy doesn't improve for this many epochs.</span></span>
+            </div>
+             <div class="option-group">
+                <label for="minAccuracy">Min Target Val Accuracy (%):</label>
+                <input type="number" id="minAccuracy" min="0" max="100" value="80">
+            </div>
+             <div class="option-group">
+                <button id="startTraining" disabled>Start Training</button>
+                <button id="stopTraining" disabled>Stop Training</button>
+                <button id="saveModelBtn" disabled>Save Model</button>
+            </div>
+        </div>
+
+        <div class="metrics-section">
+            <h2>Training Metrics</h2>
+            <div>
+                <p>Epoch: <span id="epochCounter">0</span> / <span id="maxEpochsDisplay">100</span></p>
+                <p>Batch Time: <span id="batchTime">0</span> ms</p>
+                 <p>Current Learning Rate: <span id="currentLRDisplay" class="metric">-</span></p>
+            </div>
+            <div>
+                <p>Progress:</p>
+                <progress id="trainingProgress" value="0" max="100"></progress>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="metrics-display">
+                <div>
+                    <p>Training Loss: <span id="trainingLoss" class="metric">-</span></p>
+                    <p>Training Accuracy: <span id="trainingAccuracy" class="metric">-%</span></p>
+                </div>
+                <div>
+                    <p>Validation Loss: <span id="validationLoss" class="metric">-</span></p>
+                    <p>Validation Accuracy: <span id="validationAccuracy" class="metric">-%</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-section full-width">
+            <h3>Data Information</h3>
+            <p>Training samples: <span id="trainingSamples">-</span></p>
+            <p>Validation samples: <span id="validationSamples">-</span></p>
+            <p>Input features per sample: <span id="inputFeatures">-</span></p>
+            <p>Class distribution (Train): Class 0: <span id="trainClass0Count">-</span>, Class 1: <span id="trainClass1Count">-</span></p>
+            <p>Class distribution (Val): Class 0: <span id="valClass0Count">-</span>, Class 1: <span id="valClass1Count">-</span></p>
+            <p>Data statistics (Train): <span id="dataStats">-</span></p>
+        </div>
+
+        <div class="graph-section full-width">
+            <div id="lossChart" style="width:100%; height:300px;"></div>
+            <div id="accuracyChart" style="width:100%; height:300px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let model, xs, ys, trainingData, validationData;
+        let isTraining = false, shouldStopTraining = false, currentEpoch = 0;
+        let trainLossHistory = [], trainAccHistory = [], valLossHistory = [], valAccHistory = [];
+        let lrScheduleType = null;
+
+        // DOM Elements
+        const backendSelectEl = document.getElementById('backendSelect');
+        const initBackendBtn = document.getElementById('initBackend');
+        const backendStatusEl = document.getElementById('backendStatus');
+        const inputSizeEl = document.getElementById('inputSize');
+        const modelTypeEl = document.getElementById('modelType');
+        // Layer Config Elements
+        const cnnConfigGroupEl = document.getElementById('cnnConfigGroup');
+        const rnnConfigGroupEl = document.getElementById('rnnConfigGroup');
+        const denseConfigGroupEl = document.getElementById('denseConfigGroup');
+        const cnnLayersEl = document.getElementById('cnnLayers');
+        const cnnFiltersEl = document.getElementById('cnnFilters');
+        const cnnKernelSizeEl = document.getElementById('cnnKernelSize');
+        const cnnPoolSizeEl = document.getElementById('cnnPoolSize');
+        const rnnLayersEl = document.getElementById('rnnLayers');
+        const rnnUnitsEl = document.getElementById('rnnUnits');
+        const denseLayersEl = document.getElementById('denseLayers');
+        const denseNeuronsEl = document.getElementById('denseNeurons');
+        const bidirectionalEl = document.getElementById('bidirectional');
+        const attentionEl = document.getElementById('attention');
+        const residualEl = document.getElementById('residual');
+        // Training Config Elements
+        const learningRateEl = document.getElementById('learningRate');
+        const lrSchedulerEl = document.getElementById('lrScheduler');
+        const optimizerSelectEl = document.getElementById('optimizerSelect');
+        const gradientClippingEl = document.getElementById('gradientClipping');
+        const clipValueEl = document.getElementById('clipValue');
+        const batchSizeEl = document.getElementById('batchSize');
+        const regularizationEl = document.getElementById('regularization');
+        const dropoutRateEl = document.getElementById('dropoutRate');
+        const dataAugmentationEl = document.getElementById('dataAugmentation');
+        const maxEpochsEl = document.getElementById('maxEpochs');
+        const earlyStoppingPatienceEl = document.getElementById('earlyStoppingPatience');
+        const minAccuracyEl = document.getElementById('minAccuracy');
+        // Buttons & Display
+        const startTrainingBtn = document.getElementById('startTraining');
+        const stopTrainingBtn = document.getElementById('stopTraining');
+        const saveModelBtn = document.getElementById('saveModelBtn');
+        const epochCounterEl = document.getElementById('epochCounter');
+        const maxEpochsDisplayEl = document.getElementById('maxEpochsDisplay');
+        const currentLRDisplayEl = document.getElementById('currentLRDisplay');
+        const batchTimeEl = document.getElementById('batchTime');
+        const trainingProgressEl = document.getElementById('trainingProgress');
+        const progressPercentEl = document.getElementById('progressPercent');
+        const trainingLossEl = document.getElementById('trainingLoss');
+        const trainingAccuracyEl = document.getElementById('trainingAccuracy');
+        const validationLossEl = document.getElementById('validationLoss');
+        const validationAccuracyEl = document.getElementById('validationAccuracy');
+        const trainingSamplesEl = document.getElementById('trainingSamples');
+        const validationSamplesEl = document.getElementById('validationSamples');
+        const inputFeaturesEl = document.getElementById('inputFeatures');
+        const trainClass0CountEl = document.getElementById('trainClass0Count');
+        const trainClass1CountEl = document.getElementById('trainClass1Count');
+        const valClass0CountEl = document.getElementById('valClass0Count');
+        const valClass1CountEl = document.getElementById('valClass1Count');
+        const dataStatsEl = document.getElementById('dataStats');
+
+        // --- Attention Layer Implementation ---
+        class AttentionLayer extends tf.layers.Layer {
+            constructor(config) {
+                super(config || {});
+                this.supportsMasking = true;
+            }
+            build(inputShape) { super.build(inputShape); }
+
+            call(inputs, kwargs) {
+                return tf.tidy(() => {
+                    const x = Array.isArray(inputs) ? inputs[0] : inputs;
+                    if (x.shape.length !== 3) { console.warn("Attention input not 3D, skipping."); return x; }
+                    const features = x.shape[x.shape.length - 1];
+                    const sqrtFeatures = tf.sqrt(tf.cast(features, 'float32'));
+                    const scores = tf.matMul(x, x.transpose([0, 2, 1]));
+                    const scaledScores = scores.div(sqrtFeatures);
+                    let weights = tf.softmax(scaledScores, -1);
+                    if (kwargs && kwargs.mask) {
+                        const mask = kwargs.mask; const expandedMask = mask.expandDims(1);
+                        weights = weights.add(tf.scalar(1.).sub(tf.cast(expandedMask, 'float32')).mul(tf.scalar(-1e9)));
+                        weights = tf.softmax(weights, -1);
+                    }
+                    const context = tf.matMul(weights, x);
+                    return context;
+                });
+            }
+            computeOutputShape(inputShape) { return inputShape; }
+            static get className() { return 'AttentionLayer'; }
+            getConfig() { return super.getConfig(); }
+        }
+        tf.serialization.registerClass(AttentionLayer);
+        // --- End Custom Attention Layer ---
+
+        // Initialize backend
+        initBackendBtn.addEventListener('click', async () => {
+            const selectedBackend = backendSelectEl.value;
+            initBackendBtn.disabled = true; initBackendBtn.textContent = 'Initializing...';
+            try {
+                await tf.setBackend(selectedBackend); await tf.ready();
+                backendStatusEl.textContent = await tf.getBackend(); backendStatusEl.style.color = '#4CAF50';
+                startTrainingBtn.disabled = false; await initializeData();
+            } catch (error) {
+                console.error('Backend Init Error:', error); backendStatusEl.textContent = 'Failed: ' + selectedBackend; backendStatusEl.style.color = '#ff0000'; alert(`Backend Error: ${error.message}`);
+            } finally {
+                initBackendBtn.disabled = false; initBackendBtn.textContent = 'Initialize Backend';
+            }
+        });
+
+        // Initialize and prepare data (async)
+        async function initializeData() {
+            console.log("Initializing data...");
+            if (typeof xsRaw === 'undefined' || typeof ysRaw === 'undefined') { console.error('Data files missing'); alert('Error: xs.js/ys.js missing.'); return; }
+            if (!Array.isArray(xsRaw) || !Array.isArray(ysRaw) || xsRaw.length !== ysRaw.length) { console.error('Data format error'); alert('Error: Invalid data format.'); return; }
+            try {
+                await processData((parseInt(inputSizeEl.value))*2);
+                console.log("Data initialization complete.");
+            } catch (error) { console.error("Data Processing Error:", error); alert(`Data Error: ${error.message}`); }
+        }
+
+        // Process and prepare data (async for WebGPU fix)
+        async function processData(inputSize) {
+            console.log(`Processing data for input size: ${inputSize}...`);
+            const filteredXs = []; const filteredYs = [];
+            for (let i = 0; i < xsRaw.length; i++) {
+                 if (!Array.isArray(xsRaw[i]) || !Array.isArray(ysRaw[i]) || ysRaw[i].length !== 1) { console.warn(`Skipping invalid sample ${i}`); continue; }
+                if (xsRaw[i].length >= inputSize) { filteredXs.push(xsRaw[i].slice(-inputSize)); filteredYs.push(ysRaw[i]); }
+            }
+            if (filteredXs.length === 0) { alert(`No samples >= ${inputSize} bars.`); console.warn(`No samples found.`); return; }
+            console.log(`Found ${filteredXs.length} valid samples.`);
+
+            const balancedData = balanceDataset(filteredXs, filteredYs);
+            if (!balancedData) { alert('Balancing failed.'); return; }
+
+            tf.dispose([xs, ys, trainingData?.xs, trainingData?.ys, validationData?.xs, validationData?.ys]);
+
+            const indices = tf.util.createShuffledIndices(balancedData.xs.length);
+            const shuffledXs = []; const shuffledYs = [];
+            for (const i of indices) { shuffledXs.push(balancedData.xs[i]); shuffledYs.push(balancedData.ys[i]); }
+
+            xs = tf.tensor2d(shuffledXs); ys = tf.tensor2d(shuffledYs);
+
+            const numSamples = xs.shape[0]; const numTrainSamples = Math.floor(numSamples * 0.67); const numValSamples = numSamples - numTrainSamples;
+            if (numTrainSamples === 0 || numValSamples === 0) { alert('Not enough data for split.'); console.error('Split error.'); tf.dispose([xs, ys]); return; }
+
+            // Apply Noise only to training xs
+            let trainXsTensor = xs.slice([0, 0], [numTrainSamples, inputSize]);
+            const noiseLevel = parseFloat(dataAugmentationEl.value);
+            if (noiseLevel > 0) {
+                const noisyTrainXs = tf.tidy(() => trainXsTensor.add(tf.randomUniform(trainXsTensor.shape, -noiseLevel, noiseLevel)));
+                trainXsTensor.dispose(); trainXsTensor = noisyTrainXs;
+                console.log(`Applied ${noiseLevel * 100}% noise augmentation.`);
+            }
+
+            trainingData = { xs: trainXsTensor, ys: ys.slice([0, 0], [numTrainSamples, 1]) };
+            validationData = { xs: xs.slice([numTrainSamples, 0], [numValSamples, inputSize]), ys: ys.slice([numTrainSamples, 0], [numValSamples, 1]) };
+
+            trainingSamplesEl.textContent = numTrainSamples; validationSamplesEl.textContent = numValSamples; inputFeaturesEl.textContent = inputSize;
+
+            // Update class counts async
+            const [trainLabelsArr, valLabelsArr] = await Promise.all([trainingData.ys.data(), validationData.ys.data()]);
+            const trainClass0 = Array.from(trainLabelsArr).filter(y => y === 0).length;
+            const valClass0 = Array.from(valLabelsArr).filter(y => y === 0).length;
+            trainClass0CountEl.textContent = trainClass0; trainClass1CountEl.textContent = numTrainSamples - trainClass0;
+            valClass0CountEl.textContent = valClass0; valClass1CountEl.textContent = numValSamples - valClass0;
+
+            await calculateDataStatistics(trainingData.xs);
+            console.log("Data processing finished.");
+        }
+
+        // Balance dataset
+        function balanceDataset(xs, ys) {
+            const class0Indices = []; const class1Indices = [];
+            for (let i = 0; i < ys.length; i++) {
+                if (ys[i][0] === 0) class0Indices.push(i); else if (ys[i][0] === 1) class1Indices.push(i); else console.warn(`Invalid label ${i}: ${ys[i][0]}`);
+            }
+            console.log(`Original: Class 0: ${class0Indices.length}, Class 1: ${class1Indices.length}`);
+            if (class0Indices.length === 0 || class1Indices.length === 0) { console.error("Cannot balance: one class empty."); return null; }
+            const minoritySize = Math.min(class0Indices.length, class1Indices.length);
+            const sampledIndices = [...shuffle(class0Indices).slice(0, minoritySize), ...shuffle(class1Indices).slice(0, minoritySize)];
+            // No need to shuffle again here, processData shuffles later
+            const balancedXs = sampledIndices.map(i => xs[i]); const balancedYs = sampledIndices.map(i => ys[i]);
+            console.log(`Balanced: ${balancedXs.length} samples (${minoritySize} per class)`);
+            return { xs: balancedXs, ys: balancedYs };
+        }
+
+        // Shuffle function
+        function shuffle(array) {
+            const result = [...array];
+            for (let i = result.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            return result;
+        }
+
+        // Calculate data statistics asynchronously
+        async function calculateDataStatistics(dataTensor) {
+            if (!dataTensor) { dataStatsEl.textContent = 'N/A'; return; }
+            try {
+                 await tf.nextFrame(); // Yield before heavy compute
+                 const {mean, variance} = tf.moments(dataTensor);
+                 const minTensor = tf.min(dataTensor);
+                 const maxTensor = tf.max(dataTensor);
+
+                 // Await all data reads together
+                 const [meanVal, varianceVal, minVal, maxVal] = await Promise.all([
+                     mean.data(),
+                     variance.data(),
+                     minTensor.data(),
+                     maxTensor.data()
+                 ]);
+
+                 const stdDev = Math.sqrt(varianceVal[0]);
+                 dataStatsEl.textContent = `Mean: ${meanVal[0].toFixed(4)}, Min: ${minVal[0].toFixed(4)}, Max: ${maxVal[0].toFixed(4)}, StdDev: ${stdDev.toFixed(4)}`;
+
+                 tf.dispose([mean, variance, minTensor, maxTensor]); // Dispose intermediate tensors
+            } catch (error) {
+                console.error('Error calculating statistics:', error);
+                dataStatsEl.textContent = 'Error calculating statistics';
+            }
+        }
+
+
+        // --- Helper function to parse comma-separated numbers ---
+        function parseNumberList(textValue, defaultValue) {
+            try {
+                const numbers = textValue.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+                return numbers.length > 0 ? numbers : [defaultValue];
+            } catch (e) {
+                console.warn(`Could not parse number list "${textValue}", using default: [${defaultValue}]`);
+                return [defaultValue];
+            }
+        }
+
+        // --- Create and compile model ---
+        function createModel(inputSize) {
+            // Get configuration values
+            const initialLR = parseFloat(learningRateEl.value);
+            const regularizationRate = parseFloat(regularizationEl.value);
+            const dropoutRate = parseFloat(dropoutRateEl.value);
+            const baseModelType = modelTypeEl.value;
+            const isBidirectional = bidirectionalEl.checked;
+            const useAttention = attentionEl.checked;
+            const useResidual = residualEl.checked;
+            const optimizerType = optimizerSelectEl.value;
+            const applyGradientClipping = gradientClippingEl.checked;
+            const clipVal = parseFloat(clipValueEl.value);
+
+            // Layer configurations
+            const numCnnLayers = parseInt(cnnLayersEl.value);
+            const cnnFilters = parseNumberList(cnnFiltersEl.value, 64); // Default 64 filters
+            const cnnKernelSize = parseInt(cnnKernelSizeEl.value);
+            const cnnPoolSize = parseInt(cnnPoolSizeEl.value);
+            const numRnnLayers = parseInt(rnnLayersEl.value); // Total RNN layers across all types
+            const rnnUnits = parseNumberList(rnnUnitsEl.value, 64); // Default 64 units
+            const numDenseLayers = parseInt(denseLayersEl.value);
+            const denseNeurons = parseNumberList(denseNeuronsEl.value, 64); // Default 64 neurons
+
+            // --- Functional API Start ---
+            const inputs = tf.input({shape: [inputSize]});
+            let currentLayerOutput = inputs;
+            let needsReshape = false; // Track if reshape was applied
+            let currentShape = [inputSize]; // Track shape for residual connections
+
+             // Determine parts based on baseModelType
+             const hasCNN = baseModelType.startsWith('cnn');
+             const rnnTypesInModel = baseModelType.split('_').filter(part => part === 'lstm' || part === 'gru');
+             const hasRNN = rnnTypesInModel.length > 0;
+             const hasDense = baseModelType === 'dense' || !hasCNN && !hasRNN; // Assume dense if nothing else specified
+
+            // Reshape for CNN/RNN
+             if (hasCNN || hasRNN) {
+                 needsReshape = true;
+                 currentLayerOutput = tf.layers.reshape({
+                     targetShape: [inputSize, 1] // [batch, timesteps, features=1]
+                 }).apply(currentLayerOutput);
+                 currentShape = [inputSize, 1];
+             }
+
+            // --- Build CNN Layers ---
+            if (hasCNN && numCnnLayers > 0) {
+                console.log(`Building ${numCnnLayers} CNN blocks...`);
+                for (let i = 0; i < numCnnLayers; i++) {
+                    const filters = cnnFilters[Math.min(i, cnnFilters.length - 1)]; // Reuse last filter count if list is short
+                    const blockInput = currentLayerOutput;
+                    const blockInputShape = currentShape;
+
+                    // Conv1D -> BatchNorm -> Activation
+                    let conv = tf.layers.conv1d({
+                        filters: filters, kernelSize: cnnKernelSize, activation: 'relu', padding: 'same',
+                        kernelRegularizer: regularizationRate > 0 ? tf.regularizers.l2({l2: regularizationRate}) : null
+                    }).apply(blockInput);
+                    conv = tf.layers.batchNormalization().apply(conv);
+                    // Update shape: [batch, timeSteps, filters]
+                    currentShape = [currentShape[0], filters]; // Assuming 'same' padding keeps timeSteps
+
+                    // Optional Residual Connection
+                    if (useResidual) {
+                        let shortcut = blockInput;
+                        // Match dimensions if needed (e.g., different filter count or pooling)
+                        const inputFilters = blockInputShape[blockInputShape.length -1];
+                         if (inputFilters !== filters) {
+                            shortcut = tf.layers.conv1d({
+                                filters: filters, kernelSize: 1, padding: 'same' // 1x1 convolution for projection
+                            }).apply(shortcut);
+                             console.log(`Applying 1x1 Conv shortcut in CNN block ${i+1}`);
+                        }
+                        conv = tf.layers.add().apply([conv, shortcut]);
+                        conv = tf.layers.activation({activation: 'relu'}).apply(conv); // Activation after merge
+                    }
+
+                    // Pooling (only if pool size > 1 and not the last CNN layer if RNN follows)
+                    const applyPooling = cnnPoolSize > 1 && !(hasRNN && i === numCnnLayers - 1);
+                    if (applyPooling) {
+                        conv = tf.layers.maxPooling1d({poolSize: cnnPoolSize}).apply(conv);
+                        // Update shape: [batch, timeSteps/poolSize, filters]
+                        currentShape = [Math.floor(currentShape[0] / cnnPoolSize), filters];
+                    }
+                    currentLayerOutput = conv; // Output of this block
+
+                    if (dropoutRate > 0) { // Spatial Dropout after CNN block
+                        currentLayerOutput = tf.layers.spatialDropout1d({rate: dropoutRate}).apply(currentLayerOutput);
+                    }
+                }
+            }
+
+            // --- Build RNN Layers ---
+             if (hasRNN && numRnnLayers > 0) {
+                 console.log(`Building ${numRnnLayers} total RNN layers (${rnnTypesInModel.join(', ')})...`);
+                 let rnnLayerCounter = 0; // Track total RNN layers added
+                 for (const rnnType of rnnTypesInModel) {
+                      const RnnLayerType = rnnType === 'gru' ? tf.layers.gru : tf.layers.lstm;
+                      // Distribute the total numRnnLayers across the types present
+                      // Simple approach: apply numRnnLayers to the first RNN type found
+                      const layersOfThisType = rnnLayerCounter === 0 ? numRnnLayers : 0; // Or a more complex distribution logic
+
+                      if (layersOfThisType > 0) {
+                           for (let i = 0; i < layersOfThisType; i++) {
+                               const units = rnnUnits[Math.min(rnnLayerCounter, rnnUnits.length - 1)];
+                               // Return sequences unless it's the very last RNN layer OR attention follows
+                                const returnSequences = (rnnLayerCounter < numRnnLayers - 1) || useAttention;
+                                needsPoolingBeforeDense = !returnSequences; // Set flag based on the *actual last* RNN layer
+
+                                const rnnLayerConfig = {
+                                    units: units,
+                                    returnSequences: returnSequences,
+                                    kernelRegularizer: regularizationRate > 0 ? tf.regularizers.l2({l2: regularizationRate}) : null,
+                                    recurrentRegularizer: regularizationRate > 0 ? tf.regularizers.l2({l2: regularizationRate}) : null
+                                };
+                                let layerToAdd = RnnLayerType(rnnLayerConfig);
+
+                                if (isBidirectional) {
+                                    currentLayerOutput = tf.layers.bidirectional({
+                                        layer: layerToAdd,
+                                        mergeMode: 'concat' // Output units will be doubled
+                                    }).apply(currentLayerOutput);
+                                } else {
+                                    currentLayerOutput = layerToAdd.apply(currentLayerOutput);
+                                }
+                                currentLayerOutput = tf.layers.batchNormalization().apply(currentLayerOutput); // BN after RNN
+
+                                // Update shape [batch, timeSteps, units (*2 if Bi)]
+                                currentShape = [currentShape[0], units * (isBidirectional ? 2 : 1)];
+
+                                if (dropoutRate > 0 && rnnLayerCounter < numRnnLayers - 1) { // Dropout between layers
+                                    currentLayerOutput = tf.layers.dropout({rate: dropoutRate}).apply(currentLayerOutput);
+                                }
+                                rnnLayerCounter++;
+                           } // End loop for layers of this type
+                      } // End if layersOfThisType > 0
+                 } // End loop over rnnTypesInModel
+
+                  if (dropoutRate > 0 && numRnnLayers > 0) { // Dropout after the absolute last RNN layer
+                     currentLayerOutput = tf.layers.dropout({rate: dropoutRate}).apply(currentLayerOutput);
+                 }
+             }
+
+            // --- Add Attention Layer ---
+            if (useAttention) {
+                 if (currentLayerOutput.shape.length === 3) { // Only apply if input is sequential
+                    console.log("Adding custom Attention Layer");
+                    currentLayerOutput = new AttentionLayer().apply(currentLayerOutput);
+                    needsPoolingBeforeDense = true; // Attention output is sequential
+                 } else {
+                     console.warn("Attention enabled, but input is not sequential. Skipping Attention.");
+                 }
+            }
+
+             // --- Add Global Pooling (if needed) ---
+             if (currentLayerOutput.shape.length === 3 && needsPoolingBeforeDense) {
+                 console.log("Applying Global Average Pooling 1D.");
+                 currentLayerOutput = tf.layers.globalAveragePooling1d({}).apply(currentLayerOutput);
+                 // Update shape: [batch, features]
+                 currentShape = [currentShape[currentShape.length - 1]]; // Only features dimension remains
+             }
+
+            // --- Flatten if necessary (before Dense, if not already pooled) ---
+            if (currentLayerOutput.shape.length > 2) {
+                console.log("Flattening before Dense layers.");
+                currentLayerOutput = tf.layers.flatten().apply(currentLayerOutput);
+                // Update shape: [batch, features]
+                // Calculate flattened features: multiply dimensions except batch
+                let flattenedFeatures = 1;
+                for (let i=0; i< currentShape.length; i++) flattenedFeatures *= currentShape[i];
+                 currentShape = [flattenedFeatures];
+            }
+
+            // --- Build Dense Layers ---
+            if (numDenseLayers > 0) {
+                console.log(`Building ${numDenseLayers} Dense hidden layers...`);
+                for (let i = 0; i < numDenseLayers; i++) {
+                     const neurons = denseNeurons[Math.min(i, denseNeurons.length - 1)];
+                     currentLayerOutput = tf.layers.dense({
+                         units: neurons, activation: 'relu',
+                         kernelRegularizer: regularizationRate > 0 ? tf.regularizers.l2({l2: regularizationRate}) : null
+                     }).apply(currentLayerOutput);
+                     currentLayerOutput = tf.layers.batchNormalization().apply(currentLayerOutput); // BN after Dense
+
+                    // Apply dropout
+                     if (dropoutRate > 0) {
+                         const currentDropout = i === numDenseLayers - 1 ? dropoutRate * 0.8 : dropoutRate; // Example: Less dropout on last hidden dense
+                         if (currentDropout > 0) {
+                             currentLayerOutput = tf.layers.dropout({rate: currentDropout}).apply(currentLayerOutput);
+                         }
+                     }
+                     // Update shape: [batch, neurons]
+                     currentShape = [neurons];
+                }
+            }
+
+            // --- Final Output Layer ---
+            const outputs = tf.layers.dense({
+                units: 1,
+                activation: 'sigmoid',
+                name: 'output'
+            }).apply(currentLayerOutput);
+
+            // --- Create Model ---
+            const functionalModel = tf.model({inputs: inputs, outputs: outputs});
+
+            // --- Optimizer ---
+            let optimizer;
+            const optimizerConfig = { learningRate: initialLR };
+            if (applyGradientClipping) {
+                optimizerConfig.clipnorm = clipVal;
+                console.log(`Gradient clipping (clipnorm=${clipVal}) requested.`);
+            }
+            switch (optimizerType) {
+                case 'rmsprop': optimizer = tf.train.rmsprop(initialLR); break;
+                case 'sgd': optimizer = tf.train.sgd(initialLR); break;
+                case 'adagrad': optimizer = tf.train.adagrad(initialLR); break;
+                case 'adamax': optimizer = tf.train.adamax(initialLR); break;
+                case 'adam': default: optimizer = tf.train.adam(initialLR); break;
+            }
+
+            // --- Learning Rate Schedule Type ---
+            lrScheduleType = lrSchedulerEl.value;
+            let compileLR = initialLR;
+            if (lrScheduleType !== 'none') console.log(`Using ${lrScheduleType} LR Schedule.`);
+
+            // --- Compile ---
+            functionalModel.compile({
+                optimizer: optimizer,
+                loss: 'binaryCrossentropy',
+                metrics: ['accuracy']
+            });
+
+            console.log("Model summary:");
+            functionalModel.summary(); // Print summary to console
+            return functionalModel;
+        }
+
+        // --- Start training ---
+        startTrainingBtn.addEventListener('click', async () => {
+            if (isTraining) return;
+            disableUI(true); // Disable config UI
+            const inputSize = parseInt(inputSizeEl.value)*2;
+
+            // Ensure data is ready
+            if (!trainingData || trainingData.xs.shape[1] !== inputSize) {
+                 console.log("Data needs refresh or initialization...");
+                 statusMessage("Processing data...");
+                 await initializeData();
+                 if (!trainingData) { // Check if init failed
+                     console.error("Data initialization failed. Aborting training.");
+                     statusMessage("Data Error!");
+                     disableUI(false); return;
+                 }
+                 statusMessage("Data ready.");
+            } else {
+                 console.log("Using existing processed data.");
+            }
+
+            // Dispose old model
+            if (model) { console.log("Disposing previous model."); model.dispose(); }
+
+            // Create new model
+            try {
+                 console.log("Creating new model...");
+                 statusMessage("Creating model...");
+                 model = createModel(inputSize);
+                 statusMessage("Model created.");
+            } catch (error) {
+                 console.error("Model Creation Error:", error);
+                 alert(`Model Creation Failed: ${error.message}\nCheck console for details.`);
+                 statusMessage("Model Error!");
+                 disableUI(false); return;
+            }
+
+            // Reset training state
+            isTraining = true; shouldStopTraining = false; currentEpoch = 0;
+            trainLossHistory = []; trainAccHistory = []; valLossHistory = []; valAccHistory = [];
+            maxEpochsDisplayEl.textContent = maxEpochsEl.value;
+            startTrainingBtn.disabled = true; stopTrainingBtn.disabled = false; saveModelBtn.disabled = true;
+            initializeCharts(); // Clear previous chart data
+            console.log("Starting training loop...");
+            statusMessage("Training started...");
+            await trainingLoop(); // Start the actual training
+        });
+
+        // --- Stop training ---
+        stopTrainingBtn.addEventListener('click', () => {
+            console.log("Stop training requested.");
+            shouldStopTraining = true;
+            stopTrainingBtn.disabled = true; // Prevent multiple clicks
+            statusMessage("Stopping training...");
+        });
+
+        // --- Save Model ---
+        saveModelBtn.addEventListener('click', async () => {
+            if (!model) { alert("No model available to save."); return; }
+            statusMessage("Saving model...");
+            saveModelBtn.disabled = true;
+            try {
+                const saveResult = await model.save('downloads://volume-nn-model');
+                console.log("Model save result:", saveResult);
+                alert("Model saved! Check browser downloads for 'volume-nn-model.json' and 'volume-nn-model.weights.bin'.");
+                statusMessage("Model saved.");
+            } catch (error) {
+                console.error("Model Save Error:", error);
+                alert(`Model Save Failed: ${error.message}`);
+                statusMessage("Save Error!");
+            } finally {
+                 // Re-enable save button if model still exists
+                 saveModelBtn.disabled = !model;
+            }
+        });
+
+        // --- Disable/Enable UI ---
+        function disableUI(isDisabled) {
+            // Select all relevant config elements
+            const elements = document.querySelectorAll('.config-section select, .config-section input, .config-section button#initBackend, .config-section button#startTraining');
+            elements.forEach(el => el.disabled = isDisabled);
+
+            // Special handling for Stop and Save buttons
+            stopTrainingBtn.disabled = !isDisabled; // Enabled only during training
+            saveModelBtn.disabled = isDisabled || !model; // Disabled during training OR if no model exists
+
+            // Handle gradient clipping input based on checkbox and training state
+            clipValueEl.disabled = isDisabled || !gradientClippingEl.checked;
+            gradientClippingEl.disabled = isDisabled; // Disable the checkbox itself too
+
+             // Re-run model options enable/disable logic based on modelType only if UI is being enabled
+             if (!isDisabled) {
+                 modelTypeEl.dispatchEvent(new Event('change'));
+             }
+        }
+
+        // --- Status Message ---
+        function statusMessage(msg) {
+            console.log(`Status: ${msg}`);
+        }
+
+        // --- Training loop ---
+        async function trainingLoop() {
+            const minAccuracy = parseInt(minAccuracyEl.value) / 100;
+            const batchSize = parseInt(batchSizeEl.value);
+            const maxEpochs = parseInt(maxEpochsEl.value);
+            const patience = parseInt(earlyStoppingPatienceEl.value);
+            let bestValAccuracy = -1;
+            let epochsSinceImprovement = 0;
+            const initialLR = parseFloat(learningRateEl.value);
+            currentLRDisplayEl.textContent = initialLR.toExponential(3);
+
+            while (isTraining && !shouldStopTraining && currentEpoch < maxEpochs && epochsSinceImprovement < patience) {
+                currentEpoch++;
+
+                if(currentEpoch > 1 && currentEpoch < 3)
+                {
+                // --- Autoscale the charts
+                Plotly.relayout("lossChart", {"xaxis.autorange" : true, "yaxis.autorange" : true});
+                Plotly.relayout("accuracyChart", {"xaxis.autorange" : true, "yaxis.autorange" : true});
+                }
+
+                const epochStartTime = performance.now();
+                await tf.nextFrame();
+
+                // Update LR
+                let currentLRValue = initialLR;
+                if (model?.optimizer) {
+    if (typeof model.optimizer.setLearningRate === 'function') {
+        // Modern approach
+        model.optimizer.setLearningRate(currentLRValue);
+    } else if (model.optimizer.learningRate !== undefined) {
+        // Alternative approach for some versions
+        model.optimizer.learningRate = currentLRValue;
+    } else {
+        // For older versions or custom optimizers
+        console.warn("Learning rate cannot be updated dynamically with this optimizer");
+    }
+    
+    // Display the current LR
+    currentLRDisplayEl.textContent = 
+        (typeof model.optimizer.getLearningRate === 'function') 
+            ? model.optimizer.getLearningRate().toExponential(3)
+            : currentLRValue.toExponential(3);
+                 } else {
+                      console.warn("Cannot set learning rate, optimizer issue.");
+                 }
+
+                // Model Fit
+                let trainResult;
+                try {
+                    await tf.nextFrame();
+                    trainResult = await model.fit(trainingData.xs, trainingData.ys, {
+                        epochs: 1, batchSize: batchSize, validationData: [validationData.xs, validationData.ys], shuffle: true,
+                        callbacks: {
+                            onBatchStart: async () => { // Update progress at start of epoch
+                                trainingProgressEl.value = 0; progressPercentEl.textContent = `0%`;
+                                await tf.nextFrame();
+                            },
+                            onBatchEnd: async (batch, logs) => {
+                                const totalBatches = Math.ceil(trainingData.xs.shape[0] / batchSize);
+                                const progress = Math.min(100, ((batch + 1) / totalBatches) * 100); // Cap at 100
+                                trainingProgressEl.value = progress; progressPercentEl.textContent = `${Math.round(progress)}%`;
+                                await tf.nextFrame();
+                            }
+                        }
+                    });
+                } catch (error) { console.error(`Epoch ${currentEpoch} Fit Error:`, error); alert(`Training Error: ${error.message}.`); shouldStopTraining = true; break; }
+
+                const epochEndTime = performance.now();
+                const epochTime = epochEndTime - epochStartTime;
+                 if (!trainResult?.history?.loss) { console.warn(`Epoch ${currentEpoch}: No results.`); shouldStopTraining = true; break; }
+
+                const trainLoss = trainResult.history.loss[0]; const trainAcc = trainResult.history.acc[0];
+                const valLoss = trainResult.history.val_loss[0]; const valAcc = trainResult.history.val_acc[0];
+
+                trainLossHistory.push(trainLoss); trainAccHistory.push(trainAcc); valLossHistory.push(valLoss); valAccHistory.push(valAcc);
+
+                epochCounterEl.textContent = currentEpoch; batchTimeEl.textContent = Math.round(epochTime); // Show epoch time now
+                trainingLossEl.textContent = trainLoss.toFixed(4); trainingAccuracyEl.textContent = `${(trainAcc * 100).toFixed(2)}%`;
+                validationLossEl.textContent = valLoss.toFixed(4); validationAccuracyEl.textContent = `${(valAcc * 100).toFixed(2)}%`;
+
+                updateCharts();
+
+                // Early stopping & Target Accuracy
+                if (valAcc > bestValAccuracy) {
+                    bestValAccuracy = valAcc; epochsSinceImprovement = 0; console.log(`Epoch ${currentEpoch}: Best val_acc: ${(bestValAccuracy * 100).toFixed(2)}%`);
+                } else {
+                    epochsSinceImprovement++; console.log(`Epoch ${currentEpoch}: No improvement (${epochsSinceImprovement}/${patience})`);
+                }
+                if (valAcc >= minAccuracy) { console.log(`Target accuracy reached at epoch ${currentEpoch}.`); shouldStopTraining = true; }
+
+                await tf.nextFrame();
+            }
+
+            // --- Training Loop Finished ---
+            const stopReason = shouldStopTraining ? (epochsSinceImprovement >= patience ? `Early stopping (patience ${patience})` : (valAccHistory?.at(-1) >= minAccuracy ? "Target accuracy met" : "Manually stopped")) : (currentEpoch >= maxEpochs ? `Max epochs (${maxEpochs}) reached` : "Finished");
+            console.log(`Training ${stopReason}. Final Val Acc: ${(bestValAccuracy > 0 ? bestValAccuracy * 100 : 0).toFixed(2)}%`);
+            statusMessage(`Training ${stopReason}.`);
+            if(epochsSinceImprovement >= patience) alert(`Training stopped early after epoch ${currentEpoch} (no improvement).`);
+
+            isTraining = false;
+
+            disableUI(false); // Re-enable UI
+        }
+
+        // --- Initialize charts ---
+        function initializeCharts() {
+             Plotly.newPlot('lossChart', [{ y: [], mode: 'lines', name: 'Training Loss', line: { color: '#ff7f0e' } }, { y: [], mode: 'lines', name: 'Validation Loss', line: { color: '#2ca02c' } }], { title: 'Loss Over Time', xaxis: { title: 'Epoch' }, yaxis: { title: 'Loss' } });
+            Plotly.newPlot('accuracyChart', [{ y: [], mode: 'lines', name: 'Training Accuracy', line: { color: '#1f77b4' } }, { y: [], mode: 'lines', name: 'Validation Accuracy', line: { color: '#d62728' } }], { title: 'Accuracy Over Time', xaxis: { title: 'Epoch' }, yaxis: { title: 'Accuracy', range: [0, 1] } });
+        }
+
+        // --- Update charts ---
+        function updateCharts() {
+            // Use extendTraces to add new points
+            Plotly.extendTraces('lossChart', { y: [[trainLossHistory.at(-1)], [valLossHistory.at(-1)]] }, [0, 1]);
+            Plotly.extendTraces('accuracyChart', { y: [[trainAccHistory.at(-1)], [valAccHistory.at(-1)]] }, [0, 1]);
+        }
+
+        // --- Event Listeners ---
+        inputSizeEl.addEventListener('change', async () => { // Make async
+            const value = parseInt(inputSizeEl.value)*2; if (value < 10) inputSizeEl.value = 10;
+            if (backendStatusEl.textContent !== "Not initialized") await initializeData(); // Await data processing
+        });
+        gradientClippingEl.addEventListener('change', function() { clipValueEl.disabled = !this.checked || isTraining; });
+        modelTypeEl.addEventListener('change', function() { // Enable/disable layer config based on model type
+            const modelType = this.value;
+            const hasCNN = modelType.includes('cnn');
+            const hasRNN = modelType.includes('gru') || modelType.includes('lstm');
+            const isDenseOnly = modelType === 'dense';
+
+            // Enable/Disable CNN Config Group
+             cnnConfigGroupEl.querySelectorAll('input, select').forEach(el => el.disabled = !hasCNN || isTraining);
+             cnnConfigGroupEl.style.opacity = hasCNN ? '1' : '0.5';
+             residualEl.disabled = !hasCNN || isTraining; // Residual specific
+
+            // Enable/Disable RNN Config Group
+             rnnConfigGroupEl.querySelectorAll('input, select').forEach(el => el.disabled = !hasRNN || isTraining);
+             rnnConfigGroupEl.style.opacity = hasRNN ? '1' : '0.5';
+             bidirectionalEl.disabled = !hasRNN || isTraining;
+             attentionEl.disabled = !hasRNN || isTraining;
+
+             // Enable/Disable Dense Config Group
+             denseConfigGroupEl.querySelectorAll('input, select').forEach(el => el.disabled = isTraining); // Dense config always available conceptually, but applies after CNN/RNN
+             denseConfigGroupEl.style.opacity = '1'; // Always visible
+
+             // Reset disabled options if needed
+             if (!hasRNN) { bidirectionalEl.checked = false; attentionEl.checked = false; rnnLayersEl.value = '0'; }
+             if (!hasCNN) { residualEl.checked = false; cnnLayersEl.value = '0';}
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+            modelTypeEl.dispatchEvent(new Event('change'));
+            gradientClippingEl.dispatchEvent(new Event('change'));
+            maxEpochsDisplayEl.textContent = maxEpochsEl.value;
+        });
+        maxEpochsEl.addEventListener('change', () => { maxEpochsDisplayEl.textContent = maxEpochsEl.value; });
+
+    </script>
+</body>
+</html>
