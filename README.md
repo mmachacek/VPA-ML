@@ -14,7 +14,7 @@ Pro spuštění je potřeba:
 3. V platformě MetaTrader 4 si otevřít Data Folder (File -> Open Data Folder) a přesunout sem MQL4 a Templates.
 4. Následně v okně Navigator najít Scripts a pravým klikem na Scripts vybrat Refresh. Tento krok zkompiluje zdrojové kódy.
 5. Vytvořit supporty a rezistance na grafu pomocí skriptu #DrawLines
-6. Vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector (jsou přiloženy i šablony, které lze na graf aplikovat pravým klikem -> Templates -> Vybrat např. EURUSD1999-2024 pro pár EURUSD M5).
+6. Vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector (jsou přiloženy i šablony, které lze na graf aplikovat pravým klikem -> Template -> Vybrat např. EURUSD1999-2024 pro pár EURUSD M5).
 7. Spustit skript #nodeJS_SendHistory_Close_Volume pro odeslání dat do Node.js, který z dat vytvoří datovou sadu. U vstupních parametrů vybrat požadovanou hodnotu barsInHistory, coz je počet vzorků.
 
 V okně Navigator se pod Scripts následně objeví #ClearLines, #DrawLines, #FailedPinBarDetector, #SuccessfulPinBarDetector a #nodeJS_SendHistory_Close_Volume.
@@ -39,8 +39,10 @@ Pro spuštění je potřeba:
 2. Po dokončení npm install provést příkaz node server.js.
 3. V platformě MetaTrader 4 si otevřít Data Folder (File -> Open Data Folder) a přesunout sem MQL4 a Templates.
 4. Následně v okně Navigator najít Expert Advisors a pravým klikem na Scripts vybrat Refresh. Tento krok zkompiluje zdrojové kódy.
-5. Vygenerovat vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector (viz. postup u Generate Dataset) pro model neznámý časový rozsah, případně načíst šablonu kterou lze aplikovat na graf pravým klikem -> Templates -> Vybrat např. EURUSD2024-2025 pro pár EURUSD M5).
+5. Vygenerovat vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector (viz. postup u Generate Dataset) pro model neznámý časový rozsah a uložit jako šablonu (pravým kliknutím na graf -> Template -> Save template, případně v testeru strategií načíst šablonu jako je např. EURUSD2024-2025 pro EURUSD M5.
 6. Otevřít tester strategií (Strategy tester) pomocí klávesové zkratky CTRL+R a zaškrnout Visual Mode. Posuvník vedle Visual Mode přesunout na hodnotu 1. Dále je potřeba zaškrtnout Use date tak, aby odpovídalo požadovanému časovému rozsahu (v případe použití šablony EURUSD2024-2025 vybrat From 2024.01.01 To 2025.01.01. U period vybrat M5, u model vybrat Open prices only a symbol vybrat EURUSD. Také je potřeba vybrat v Expert properties požadovanou hodnotu Number of bars to analyze, což je počet vzorků.
+7. Pro spuštení vyhodnocení kliknout na tlačítko Start v pravém dolním rohu. Otevře se nové okno s grafem, kde je potřeba načíst šablonu z kroku č. 5. Poté je možné posunout posuvník vedle Visual mode na hodnotu 32 pro zrychlení průběhu vyhodnocování.
+8. 
 
 ## NN Learning
 
