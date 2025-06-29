@@ -47,7 +47,16 @@ Pro spuštění je potřeba:
 
 ## NN Learning
 
+V této složce se nachází materiály pro učení modelů a grafy s výsledky.
+Pro zjednodušení byly vytvořeny HTML soubory, pomocí kterých lze učit modely přímo v prohlížeči.
 
+Pro spuštění je potřeba:
+1. Vybrat si složku s párem a počtem vzorků (např. /EURUSDM5/10 Bars/).
+2. Spustit index.html. Otevře se GUI pro učení modelů.
+3. Vybrat backend (WebGPU, WebGL, CPU) a kliknout na tlačítko Initialize Backend.
+4. Pro spuštění učení modelu kliknout na Start Training.
+5. Po dokončení učení se napravo zobrazí metriky z učení modelu. Následně je možné pomocí tlačítka Save model uložit naučený model a použít ho u NN Evaluation (viz. předchozí složka).
+6. Na konci stránky jsou zobrazeny plot.ly grafy, které je možné uložit pomocí tlačítka na uložení grafu (pravý horní roh grafu). 
 
 ## Řešení problémů
 
