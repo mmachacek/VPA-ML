@@ -42,9 +42,12 @@ Pro spuštění je potřeba:
 5. Vygenerovat vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector (viz. postup u Generate Dataset) pro model neznámý časový rozsah a uložit jako šablonu (pravým kliknutím na graf -> Template -> Save template, případně v testeru strategií načíst šablonu jako je např. EURUSD2024-2025 pro EURUSD M5.
 6. Otevřít tester strategií (Strategy tester) pomocí klávesové zkratky CTRL+R a zaškrnout Visual Mode. Posuvník vedle Visual Mode přesunout na hodnotu 1. Dále je potřeba zaškrtnout Use date tak, aby odpovídalo požadovanému časovému rozsahu (v případe použití šablony EURUSD2024-2025 vybrat From 2024.01.01 To 2025.01.01. U period vybrat M5, u model vybrat Open prices only a symbol vybrat EURUSD. Také je potřeba vybrat v Expert properties požadovanou hodnotu Number of bars to analyze, což je počet vzorků.
 7. Pro spuštení vyhodnocení kliknout na tlačítko Start v pravém dolním rohu. Otevře se nové okno s grafem, kde je potřeba načíst šablonu z kroku č. 5. Poté je možné posunout posuvník vedle Visual mode na hodnotu 32 pro zrychlení průběhu vyhodnocování.
-8. 
+8. Po dokončení je ve složce (např. Server/EURUSDM5/10 Bars) vytvořen soubor predictions_log.json, který obsahuje jednotlivé predikce a celkovou přesnost modelu.
+9. Pro optimalizaci prahových hodnot je možné využit skript analyze_all.js pomocí příkazu v příkazové řádce node analyze_all.js, který je ve složce se souborem server.js. Skript provede analýzu prahových hodnot a vypíše nejvhodnější prahovou hodnotu.
 
 ## NN Learning
+
+
 
 ## Řešení problémů
 
