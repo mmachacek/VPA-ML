@@ -4,14 +4,18 @@ Základním požadavkem je Node.js v22.15.0 LTS, terminál MetaTrader 4 od ICMar
 
 ## Generate Dataset
 
-V této složce se nachází generátor datových sad pro učení modelů neuronových sítí. 
+V této složce se nachází generátor datových sad pro učení modelů strojového učení. 
 Najdeme zde Node.js server (server.js) a skripty, včetně šablon do platformy MetaTrader 4. 
 
 Pro spuštění je potřeba:
 
 1. Otevřít příkazový řádek ve složce se souborem server.js a provést příkaz npm install.
-2. V platformě MetaTrader 4 si otevřít Data Folder (File -> Open Data Folder) a přesunout sem MQL4 a Templates.
-3. Následně v okně Navigator najít Scripts a pravým klikem na Scripts vybrat Refresh. Tento krok zkompiluje zdrojové kódy.  
+2. Po dokončení npm install provést příkaz node server.js.
+3. V platformě MetaTrader 4 si otevřít Data Folder (File -> Open Data Folder) a přesunout sem MQL4 a Templates.
+4. Následně v okně Navigator najít Scripts a pravým klikem na Scripts vybrat Refresh. Tento krok zkompiluje zdrojové kódy.
+5. Vytvořit supporty a rezistance na grafu pomocí skriptu #DrawLines
+6. Vyznačit úspěšné a neúspěšné pinbary pomocí skriptů #FailedPinBarDetector a #SuccessfulPinBarDetector.
+7. Spustit skript #nodeJS_SendHistory_Close_Volume pro odeslání dat do Node.js, který z dat vytvoří datovou sadu.
 
 V okně Navigator se pod Scripts následně objeví #ClearLines, #DrawLines, #FailedPinBarDetector, #SuccessfulPinBarDetector a #nodeJS_SendHistory_Close_Volume.
 
@@ -19,7 +23,11 @@ V okně Navigator se pod Scripts následně objeví #ClearLines, #DrawLines, #Fa
 
 #DrawLines - Vytvoří supporty a rezistance na základě dvou ručne vytvořených horizontálních čar na grafu (je potřeba nakreslit na graf rozsah supportů a rezistencí na graf pomocí volby Draw horizontal line a poté spustit skript #DrawLines).
 
+#FailedPinBarDetector - Označí neúspěšné pinbary na grafu podle nastaveného časového rozsahu (na základě předem vytvořených supportů a rezistencí).
 
+#SuccessfulPinBarDetector - Stejně jako u #FailedPinBarDetector, ale s tím rozdílem, že označí úspěšné pinbary na grafu podle nastaveného časového rozsahu (na základě předem vytvořených supportů a rezistencí).
+
+#nodeJS_SendHistory_Close_Volume - Odešle data do node.js server, který z těchto dat vytvoří datové sady pro učení modelů strojového učení.
 
 ## NN Evaluation
 
