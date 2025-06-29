@@ -1,13 +1,13 @@
 # Materiály k diplomové práci na téma "Možnosti využití strojového učení při detekci aktivit tvůrců trhu"
 
-Základním požadavkem je Node.js v22.15.0 LTS, terminál MetaTrader 4 od ICMarkets (EU) Ltd. a internetový prohlížeč ideálně založený na internetovém prohléžeči chromium (Google Chrome, Microsoft Edge, Opera atd...). Dále je potřeba v platformě MetaTrader 4 umožnit import DLL (v platformě MetaTrader 4 vybrat Tools -> Options -> zaškrtnout Allow DLL imports), jelikož kódy využívají knihovnu WinINet.
+Základním požadavkem je Node.js >=v22.15.0 LTS, terminál MetaTrader 4 od ICMarkets (EU) Ltd. a internetový prohlížeč ideálně založený na internetovém prohléžeči chromium (Google Chrome, Microsoft Edge, Opera atd...). Dále je potřeba v platformě MetaTrader 4 umožnit import DLL (v platformě MetaTrader 4 vybrat Tools -> Options -> zaškrtnout Allow DLL imports), jelikož kódy využívají knihovnu WinINet (pro komunikaci mezi MT4 a Node.js serverem).
 
 ## Generate Dataset
 
 V této složce se nachází generátor datových sad pro učení modelů strojového učení. 
 Najdeme zde Node.js server (server.js) a skripty, včetně šablon do platformy MetaTrader 4. 
 
-Pro spuštění je potřeba:
+### Pro spuštění je potřeba:
 
 1. Otevřít příkazový řádek ve složce se souborem server.js a provést příkaz npm install.
 2. Po dokončení npm install provést příkaz node server.js.
@@ -33,7 +33,7 @@ V okně Navigator se pod Scripts následně objeví #ClearLines, #DrawLines, #Fa
 
 V této složce se nachází automatický obchodní systém (AOS) pro platformu MetaTrader 4 a Node.js server. Obojí slouží k ověření výkonnosti naučených modelů.
 
-Pro spuštění je potřeba:
+### Pro spuštění je potřeba:
 
 1. Otevřít příkazový řádek ve složce se souborem server.js (NN Evaluation/Server) a provést příkaz npm install.
 2. Po dokončení npm install provést příkaz node server.js.
@@ -48,9 +48,10 @@ Pro spuštění je potřeba:
 ## NN Learning
 
 V této složce se nachází materiály pro učení modelů a grafy s výsledky.
-Pro zjednodušení byly vytvořeny HTML soubory, pomocí kterých lze učit modely přímo v prohlížeči.
+Pro zjednodušení byly vytvořeny HTML soubory, pomocí kterých lze učit modely přímo v internetovém prohlížeči.
 
-Pro spuštění je potřeba:
+### Pro spuštění je potřeba:
+
 1. Vybrat si složku s párem a počtem vzorků (např. /EURUSDM5/10 Bars/).
 2. Spustit index.html. Otevře se GUI pro učení modelů.
 3. Vybrat backend (WebGPU, WebGL, CPU) a kliknout na tlačítko Initialize Backend.
